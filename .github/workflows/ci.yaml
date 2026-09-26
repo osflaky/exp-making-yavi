@@ -1,0 +1,41 @@
+name: Java CI with Maven
+
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - java: 8.x
+          os: macos-latest
+          arch: arm64
+          runner: macos-latest
+          expander_leg: macos-latest--arm64
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up JDK ${{ matrix.java }}
+      uses: actions/setup-java@v6
+      with:
+        java-version: ${{ matrix.java }}
+        distribution: 'liberica'
+        # No vendor ships a native Windows ARM64 build of JDK 8, so that leg installs the
+        # x64 JDK 8 build. Windows 11 on ARM runs it through its built-in x64 emulation.
+        # Every other leg leaves this empty, which makes setup-java use the runner's own architecture.
+        architecture: ${{ (matrix.os == 'windows-latest' && matrix.arch == 
+          'arm64' && matrix.java == '8.x') && 'x64' || '' }}
+        cache: maven
+    - name: Unit Tests
+      if: matrix.java != '8.x'
+      run: ./mvnw -V --no-transfer-progress clean test
+    - name: Unit Tests with Coverage
+      if: matrix.java == '8.x'
+      run: ./mvnw -V --no-transfer-progress clean jacoco:prepare-agent test 
+        jacoco:report
+    - name: Build Javadoc
+      if: matrix.java == '8.x'
+      run: ./mvnw -V --no-transfer-progress javadoc:jar
+    name: test [${{ matrix.expander_leg }}]
+    timeout-minutes: 150
